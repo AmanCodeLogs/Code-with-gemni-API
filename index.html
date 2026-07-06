@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CivicMind: Decision Intelligence Platform</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; background-color: #f8fafc; }
+        .glass-panel { background: rgba(255, 255, 255, 0.9); backdrop-filter: blur(10px); border: 1px solid rgba(255,255,255,0.2); }
+        .loader { border-top-color: #3b82f6; -webkit-animation: spinner 1.5s linear infinite; animation: spinner 1.5s linear infinite; }
+        @keyframes spinner { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+    </style>
+</head>
+<body class="text-slate-800 h-screen flex flex-col">
+
+    <nav class="bg-blue-900 text-white p-4 shadow-md flex justify-between items-center">
+        <div class="flex items-center gap-2">
+            <i class="fas fa-city text-2xl text-blue-300"></i>
+            <h1 class="text-xl font-bold tracking-wide">CivicMind AI</h1>
+        </div>
+        <div class="flex items-center gap-4">
+            <div class="text-xs text-blue-200">Google Gen AI Academy Hackathon</div>
+        </div>
+    </nav>
+
+    <main class="flex-grow p-6 flex flex-col md:flex-row gap-6 max-w-7xl mx-auto w-full">
+        
+        <div class="w-full md:w-1/3 flex flex-col gap-4">
+            <div class="bg-white p-5 rounded-xl shadow-sm border border-slate-200">
+                <h2 class="text-lg font-bold mb-2 flex items-center gap-2">
+                    <i class="fas fa-comment-dots text-blue-600"></i> Report an Issue
+                </h2>
+                <p class="text-sm text-slate-500 mb-4">Type a community issue in natural language. The AI will structure it for city officials.</p>
+                
+                <textarea id="complaintInput" rows="5" class="w-full p-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none text-sm mb-3" placeholder="Example: The main pipe burst near Gandhi Maidan yesterday and the road is completely flooded. Traffic is backed up for miles..."></textarea>
+                
+                <button id="analyzeBtn" onclick="runAnalysis()" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2.5 rounded-lg transition-all flex justify-center items-center gap-2">
+                    <i class="fas fa-brain"></i> Analyze with Gemini AI
+                </button>
+            </div>
+
+            <div class="grid grid-cols-2 gap-4">
+                <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-200 text-center">
+                    <div class="text-3xl font-bold text-blue-600" id="totalTickets">0</div>
+                    <div class="text-xs font-semibold text-slate-500 uppercase tracking-wide mt-1">Total Reports</div>
+                </div>
+                <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-200 text-center">
+                    <div class="text-3xl font-bold text-red-500" id="highPriority">0</div>
+                    <div class="text-xs font-semibold text-slate-500 uppercase tracking-wide mt-1">High Priority</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="w-full md:w-2/3 flex flex-col h-full">
+            <div class="bg-white p-5 rounded-xl shadow-sm border border-slate-200 flex-grow overflow-hidden flex flex-col">
+                <h2 class="text-lg font-bold mb-4 flex items-center gap-2 pb-2 border-b">
+                    <i class="fas fa-chart-line text-blue-600"></i> Decision Intelligence Feed
+                </h2>
+                
+                <div id="loadingState" class="hidden flex-col items-center justify-center py-10">
+                    <div class="loader ease-linear rounded-full border-4 border-t-4 border-gray-200 h-12 w-12 mb-4"></div>
+                    <p class="text-blue-600 font-medium">Gemini is analyzing the data...</p>
+                </div>
+
+                <div id="ticketsContainer" class="flex-grow overflow-y-auto space-y-4 pr-2">
+                    <div class="text-center text-slate-400 py-10" id="emptyState">
+                        <i class="fas fa-inbox text-4xl mb-3"></i>
+                        <p>No intelligent insights generated yet. Submit a report to begin.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        const API_KEY = "PASTE_YOUR_API_KEY_HERE";
+        let reportsList = [];
+
+        async function runAnalysis() {
+            let userText = document.getElementById('complaintInput').value.trim();
+            
+            if (!userText) {
+                alert("Please enter a description.");
+                return;
+            }
+
+            document.getElementById('loadingState').classList.remove('hidden');
+            let emptyEl = document.getElementById('emptyState');
+            if(emptyEl) emptyEl.classList.add('hidden');
+            document.getElementById('analyzeBtn').disabled = true;
+
+            let myPrompt = `You are an AI assistant for a Decision Intelligence Platform. 
+Analyze the following citizen complaint and extract structured data.
+Complaint: "${userText}"
+
+Respond strictly in JSON format with the following keys:
+- "category": (e.g., Public Safety, Utilities, Infrastructure, Healthcare, etc.)
+- "severity": (Must be exactly one of: "High", "Medium", "Low")
+- "location": (Extract the location mentioned, or "Location not specified")
+- "summary": (A concise 1-sentence summary of the issue)
+- "action_plan": (A 1-2 sentence recommendation for city officials on how to resolve this)`;
+
+            try {
+                let req = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${API_KEY}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        contents: [{ parts: [{ text: myPrompt }] }],
+                        generationConfig: { responseMimeType: "application/json" }
+                    })
+                });
+
+                let resData = await req.json();
+                console.log("Gemini API Response:", resData); // standard hackathon debug log
+                
+                let textResult = resData.candidates[0].content.parts[0].text;
+                let finalJson = JSON.parse(textResult);
+                
+                reportsList.unshift(finalJson);
+                renderCards();
+                document.getElementById('complaintInput').value = '';
+                
+            } catch (err) {
+                console.log("api error", err);
+                alert("Something went wrong with the AI request.");
+            }
+            
+            document.getElementById('loadingState').classList.add('hidden');
+            document.getElementById('analyzeBtn').disabled = false;
+        }
+
+        function renderCards() {
+            let wrap = document.getElementById('ticketsContainer');
+            wrap.innerHTML = '';
+            
+            let highCount = 0;
+
+            for(let i=0; i<reportsList.length; i++) {
+                let item = reportsList[i];
+                if (item.severity === 'High') highCount++;
+
+                let bgClass = 'bg-green-100 text-green-800';
+                if (item.severity === 'Medium') bgClass = 'bg-yellow-100 text-yellow-800';
+                if (item.severity === 'High') bgClass = 'bg-red-100 text-red-800 flex items-center gap-1 animate-pulse';
+
+                let newDiv = document.createElement('div');
+                newDiv.className = 'border border-slate-200 rounded-lg p-4 hover:shadow-md transition-shadow bg-slate-50';
+                newDiv.innerHTML = `
+                    <div class="flex justify-between items-start mb-2">
+                        <span class="text-xs font-bold uppercase tracking-wider text-blue-700 bg-blue-100 px-2 py-1 rounded">
+                            <i class="fas fa-tag mr-1"></i>${item.category}
+                        </span>
+                        <span class="text-xs font-bold px-2 py-1 rounded ${bgClass}">
+                            ${item.severity === 'High' ? '<i class="fas fa-exclamation-triangle"></i>' : ''} ${item.severity} Priority
+                        </span>
+                    </div>
+                    <h3 class="font-bold text-slate-800 mb-1">${item.summary}</h3>
+                    <p class="text-sm text-slate-600 mb-3"><i class="fas fa-map-marker-alt text-red-500 mr-1"></i> ${item.location}</p>
+                    <div class="bg-white border-l-4 border-blue-500 p-3 rounded shadow-sm">
+                        <p class="text-sm font-semibold text-slate-700 mb-1"><i class="fas fa-robot text-blue-500 mr-1"></i> AI Recommended Action:</p>
+                        <p class="text-sm text-slate-600">${item.action_plan}</p>
+                    </div>
+                `;
+                wrap.appendChild(newDiv);
+            }
+
+            document.getElementById('totalTickets').innerText = reportsList.length;
+            document.getElementById('highPriority').innerText = highCount;
+        }
+    </script>
+</body>
+</html>
