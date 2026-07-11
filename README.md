@@ -1,6 +1,6 @@
 CivicMind AI 🏙️
 
- Code-with-gemni-APIHackathon Prototype
+ Code-with-gemni-API Hackathon Prototype
 
 CivicMind AI is a real-time Decision Intelligence platform designed to bridge the gap between citizen feedback and rapid municipal response. By leveraging the power of Google Gemini 2.5 Flash, the platform transforms unstructured, natural language complaints from citizens into structured, prioritized, and actionable data payloads for city officials.
 
